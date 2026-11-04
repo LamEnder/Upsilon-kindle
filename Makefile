@@ -94,6 +94,7 @@ help:
 	@echo "  make PLATFORM=simulator TARGET=windows"
 	@echo "  make PLATFORM=simulator TARGET=3ds"
 	@echo "  make PLATFORM=simulator TARGET=fxcg"
+	@echo "  make PLATFORM=simulator TARGET=kindle upsilon.zip"
 
 .PHONY: doc
 doc:

@@ -1,0 +1,10 @@
+{
+  "items": [
+    {
+      "name": "Upsilon calculator",
+      "priority": 1,
+      "action": "./upsilon.sh",
+      "exitmenu": true
+    }
+  ]
+}
