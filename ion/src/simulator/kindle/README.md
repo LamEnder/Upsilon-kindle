@@ -12,16 +12,21 @@ Probability, Solver, Atomic, Sequences, Regression, Reader, Settings.
 
 ## Installing
 
-Requirements: a jailbroken Kindle with
-[KUAL](https://www.mobileread.com/forums/showthread.php?t=203326) installed.
+You need a jailbroken Kindle. Unzip `upsilon.zip` at the root of the Kindle's
+storage (over USB). It contains:
 
-1. Connect the Kindle over USB.
-2. Unzip `upsilon.zip` at the root of the Kindle's storage. You should end up
-   with `extensions/upsilon/` next to the other KUAL extensions.
-3. Eject, open KUAL, tap **Upsilon calculator**.
+| Folder | What it is |
+| --- | --- |
+| `upsilon/` | The calculator itself, its settings (`upsilon.conf`), saved state and log. **Always needed.** |
+| `documents/Upsilon.sh` | A [Scriptlet](https://kindlemodding.org/kindle-dev/scriptlets.html): Upsilon appears in the Kindle library, tap it to start. Needs the Universal Hotfix (installed with WinterBreak and later jailbreaks). |
+| `koreader/plugins/upsilon.koplugin/` | [KOReader](https://koreader.rocks) plugin: *Tools → More tools → Upsilon calculator*. It can also be bound to a gesture. |
+| `extensions/upsilon/` | [KUAL](https://www.mobileread.com/forums/showthread.php?t=203326) menu entry. |
+
+Keep `upsilon/` and whichever launchers you use; the others are harmless.
 
 To quit, **hold the "exit" key** (top left of the keypad) for about half a
-second. The Kindle home screen comes back.
+second. You get back to wherever you started from: the home screen, the
+library, or KOReader.
 
 ## Using it
 
@@ -34,15 +39,18 @@ second. The Kindle home screen comes back.
   regularly and when the whole screen changes; tap **clean screen** to force one.
 * Everything in the calculator's memory (Python scripts, functions,
   sequences, variables) and your settings are saved to
-  `extensions/upsilon/upsilon.state` every few seconds and on exit.
+  `upsilon/upsilon.state` every few seconds and on exit, whichever launcher
+  you use.
   After updating Upsilon, scripts, functions and sequences are kept; variables
   and settings saved by the previous version are reset.
-* `extensions/upsilon/upsilon.log` has diagnostic output.
+* `upsilon/upsilon.log` has diagnostic output.
 
-Options live in `extensions/upsilon/upsilon.conf` (zoom level, refresh
+Options live in `upsilon/upsilon.conf` (zoom level, refresh
 frequency, contrast, touch orientation fixes, startup language).
 
-While Upsilon runs the Kindle interface is paused. If you press the power
+When started from the library or KUAL, the Kindle interface is paused while
+Upsilon runs. From KOReader, KOReader hands over the screen and touch panel
+and takes them back afterwards. If you press the power
 button the Kindle goes to sleep as usual; after waking it up, tap
 **clean screen** to repaint the calculator.
 
@@ -53,7 +61,7 @@ sudo apt install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf zip \
   libfreetype6-dev libpng-dev libjpeg-dev pkg-config imagemagick
 pip install lz4 pypng stringcase
 make PLATFORM=simulator TARGET=kindle -j4 upsilon.zip
-# -> output/release/simulator/kindle/upsilon.zip
+# -> output/release/simulator/kindle/upsilon.zip (layout above)
 ```
 
 The binary is fully static, so it doesn't depend on the firmware's glibc. You
@@ -94,4 +102,4 @@ Commands: `key NAME`, `hold NAME MS`, `tap X Y`, `wait MS`, `shot FILE.pgm`,
 | `keypad.cpp` | Keypad layout and drawing (with Kandinsky's fonts), hit testing, pressed-key feedback |
 | `input.cpp` | Turns taps into `Ion::Keyboard::State`s so that short taps and taps during busy periods are not lost, and direct keyboard polls (Python interrupt, `ion.keydown`) behave like on the hardware |
 | `persistence.cpp`, `preferences.cpp` | State file |
-| `extension/` | KUAL launcher: pauses the Kindle UI (`cvm`), status bar and screensaver, then restores them |
+| `package/` | Launchers: `upsilon.sh` (pauses the Kindle UI (`cvm`), status bar and screensaver, then restores them; `--scriptlet` and `--koreader` modes), the Scriptlet, the KOReader plugin and the KUAL entry |

@@ -3,7 +3,8 @@
     {
       "name": "Upsilon calculator",
       "priority": 1,
-      "action": "./upsilon.sh",
+      "action": "/bin/sh",
+      "params": "/mnt/us/upsilon/upsilon.sh",
       "exitmenu": true
     }
   ]
