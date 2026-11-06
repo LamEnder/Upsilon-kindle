@@ -26,7 +26,7 @@
         },
         "Battery": {
             "": "ffffff",
-            "InCharge": "ffffff",
+            "InCharge": "7a7a7a",
             "Low": "9a9a9a"
         },
         "ScrollBar": {

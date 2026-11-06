@@ -33,7 +33,7 @@ kindle_replaced_src += $(addprefix ion/src/simulator/shared/, \
   timing.cpp \
   window.cpp \
 )
-kindle_replaced_src += ion/src/shared/dummy/battery.cpp
+kindle_replaced_src += ion/src/shared/dummy/battery.cpp ion/src/shared/dummy/usb.cpp
 
 ion_src := $(filter-out $(kindle_replaced_src),$(ion_src))
 
