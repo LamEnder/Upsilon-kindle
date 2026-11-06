@@ -24,6 +24,10 @@ SFLAGS += -DKINDLE_DIAGNOSTICS=$(KINDLE_DIAGNOSTICS)
 
 HANDY_TARGETS_EXTENSIONS = zip
 
+# The External app's built-in entry is a file manager for Python scripts
+EXTAPP_PATH = apps/external/kindle
+SFLAGS += -DEXTAPP_BUILTIN_NAME='"Files"'
+
 # Plain static executable: no PIE, so raw expression trees kept in the state
 # file stay valid between runs of the same binary (see kindle/persistence.h).
 SFLAGS := $(filter-out -fPIE, $(SFLAGS))

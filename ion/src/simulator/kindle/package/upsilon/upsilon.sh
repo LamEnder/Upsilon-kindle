@@ -153,6 +153,13 @@ if [ -z "${KEEP_FRAMEWORK}" ]; then
     log "Kindle UI state: $(process_state "${CVM_PID}")"
 fi
 
+# Scripts to copy in and out with the Files entry of the External app, and
+# books for the Reader app, which reads them from the current directory
+UPSILON_FILES="${UPSILON_FILES:-${UPSILON_DIR}/files}"
+mkdir -p "${UPSILON_FILES}" 2>/dev/null
+export UPSILON_FILES
+cd "${UPSILON_FILES}" 2>/dev/null || log "NOTE: can't use ${UPSILON_FILES}, Reader and Files will look in $(pwd)"
+
 log "starting ${UPSILON_DIR}/bin/upsilon ${UPSILON_ARGS}"
 # shellcheck disable=SC2086
 "${UPSILON_DIR}/bin/upsilon" --state "${UPSILON_DIR}/upsilon.state" ${UPSILON_ARGS} >>"${LOG}" 2>&1 &

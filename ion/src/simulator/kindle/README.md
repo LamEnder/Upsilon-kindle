@@ -45,6 +45,24 @@ library, or KOReader.
   and settings saved by the previous version are reset.
 * `upsilon/upsilon.log` has diagnostic output.
 
+### Python scripts and books
+
+The folder `upsilon/files/` on the Kindle (created on first launch) is where
+files go in and out of the calculator:
+
+* **Python scripts:** copy `.py` files there over USB, then open
+  **External → Files** in Upsilon. The *Kindle* list shows the scripts in the
+  folder, the *Calculator* list the ones in the calculator's memory. **OK**
+  copies the selected script to the other side (asking before replacing one),
+  **del** deletes a script from the calculator, **◀ ▶** switches lists and
+  **back** leaves. Imported scripts get a name the Python app accepts
+  (lowercase letters, digits, `_`); Windows line endings and tabs are
+  converted. The calculator's memory holds about 60 KB in all.
+* **Books:** `.txt` (and Upsilon's `.urt` rich text) files in that folder
+  show up directly in the **Reader** app; no copying needed.
+
+Set `UPSILON_FILES` in `upsilon.conf` to use another folder.
+
 Options live in `upsilon/upsilon.conf` (zoom level, refresh
 frequency, contrast, touch orientation fixes, startup language).
 

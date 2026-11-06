@@ -122,12 +122,16 @@ uint32_t executeFile(const char *name, void * heap, const uint32_t heapSize) {
 
 #else
 
+#ifndef EXTAPP_BUILTIN_NAME
+#define EXTAPP_BUILTIN_NAME "Built-in"
+#endif
+
 bool fileAtIndex(size_t index, File &entry) {
   if (index != 0) {
     return false;
   }
 
-  entry.name = "Built-in";
+  entry.name = EXTAPP_BUILTIN_NAME;
   entry.data = NULL;
   entry.dataLength = 0;
   entry.isExecutable = true;
