@@ -25,6 +25,11 @@ case "$1" in
             echo "Upsilon is not running"
             exit 1
         fi
+        if grep -q "fast build, diagnostics off" "${LOG}"; then
+            echo "This is a fast build (KINDLE_DIAGNOSTICS=0): it cannot write reports."
+            echo "Use the regular build to investigate a problem."
+            exit 1
+        fi
         LINES=$(wc -l <"${LOG}")
         kill -QUIT "${PID}"
         sleep 2

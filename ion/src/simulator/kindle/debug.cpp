@@ -19,10 +19,13 @@
 #include <unistd.h>
 #include <unwind.h>
 
+#if KINDLE_DIAGNOSTICS
 extern char ** environ;
+#endif
 
 namespace {
 
+#if KINDLE_DIAGNOSTICS
 using Ion::Kindle::Debug::Counters;
 
 constexpr uint64_t k_stallMs = 4000;          // No keyboard poll for this long: stalled
@@ -32,7 +35,10 @@ constexpr uint64_t k_rescueHoldMs = 3000;     // Finger held this long while sta
 constexpr uint64_t k_statusEveryMs = 10000;   // Verbose status line
 constexpr int k_maxFrames = 48;
 
+#endif
+
 uint64_t sStartMs = 0;
+#if KINDLE_DIAGNOSTICS
 bool sVerbose = false;
 const char * volatile sPhase = "starting";
 uint64_t sLastBeat = 0;  // Accessed with __atomic builtins
@@ -41,6 +47,7 @@ pthread_t sMainThread;
 pid_t sMainTid = 0;
 volatile int sTouchFd = -1;
 volatile sig_atomic_t sDumpRequested = 0;
+#endif
 
 uint64_t nowMs() {
   struct timespec ts;
@@ -63,6 +70,8 @@ void writeAll(const char * s, size_t n) {
     n -= w;
   }
 }
+
+#if KINDLE_DIAGNOSTICS
 
 void writeStr(const char * s) {
   writeAll(s, strlen(s));
@@ -666,12 +675,15 @@ void * watchdogMain(void *) {
   return nullptr;
 }
 
+#endif // KINDLE_DIAGNOSTICS
+
 }
 
 namespace Ion {
 namespace Kindle {
 namespace Debug {
 
+#if KINDLE_DIAGNOSTICS
 void init() {
   sStartMs = nowMs();
   sMainThread = pthread_self();
@@ -732,6 +744,18 @@ bool verbose() {
   return sVerbose;
 }
 
+#else // Fast build: diagnostics compiled out
+
+void init() {
+  sStartMs = nowMs();
+  signal(SIGPIPE, SIG_IGN);
+  // No report to write: don't let debug.sh's SIGQUIT terminate us
+  signal(SIGQUIT, SIG_IGN);
+  log("upsilon for Kindle (fast build, diagnostics off), built " __DATE__ " " __TIME__ ", pid %d", (int)getpid());
+}
+
+#endif
+
 void log(const char * format, ...) {
   char buffer[1024];
   uint64_t t = nowMs() - sStartMs;
@@ -750,6 +774,8 @@ void log(const char * format, ...) {
   buffer[n++] = '\n';
   writeAll(buffer, n);
 }
+
+#if KINDLE_DIAGNOSTICS
 
 void setPhase(const char * phase) {
   sPhase = phase;
@@ -781,6 +807,8 @@ void startWatchdog() {
 Counters & counters() {
   return sCounters;
 }
+
+#endif
 
 }
 }

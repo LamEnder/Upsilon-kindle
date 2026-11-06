@@ -18,14 +18,33 @@
  * - kill -QUIT <pid> writes the same report on demand.
  * - Crashes (SIGSEGV, SIGABRT...) are logged with a backtrace. */
 
+/* Build with KINDLE_DIAGNOSTICS=0 to compile all of this out except log()
+ * (errors and a few key events are still logged). */
+#ifndef KINDLE_DIAGNOSTICS
+#define KINDLE_DIAGNOSTICS 1
+#endif
+
 namespace Ion {
 namespace Kindle {
 namespace Debug {
 
 void init();
-bool verbose();
 
 void log(const char * format, ...) __attribute__((format(printf, 1, 2)));
+
+/* Counters reported in the verbose status line */
+struct Counters {
+  uint32_t scans;
+  uint32_t touchEvents;
+  uint32_t taps;
+  uint32_t einkUpdates;
+  uint32_t einkFailures;
+  uint32_t einkMaxMs;
+};
+
+#if KINDLE_DIAGNOSTICS
+
+bool verbose();
 
 /* Current startup/shutdown step, reported by the watchdog. Must be a string
  * literal (kept as a pointer). */
@@ -39,20 +58,7 @@ void startWatchdog();
 /* Touchscreen used for the rescue gesture */
 void setTouchFd(int fd);
 
-/* Counters reported in the verbose status line */
-struct Counters {
-  uint32_t scans;
-  uint32_t touchEvents;
-  uint32_t taps;
-  uint32_t einkUpdates;
-  uint32_t einkFailures;
-  uint32_t einkMaxMs;
-};
 Counters & counters();
-
-}
-}
-}
 
 #define KINDLE_VLOG(...) \
   do { \
@@ -60,5 +66,25 @@ Counters & counters();
       Ion::Kindle::Debug::log(__VA_ARGS__); \
     } \
   } while (0)
+
+#else
+
+inline bool verbose() { return false; }
+inline void setPhase(const char *) {}
+inline void heartbeat() {}
+inline void startWatchdog() {}
+inline void setTouchFd(int) {}
+inline Counters & counters() {
+  static Counters c;
+  return c;
+}
+
+#define KINDLE_VLOG(...) do {} while (0)
+
+#endif
+
+}
+}
+}
 
 #endif

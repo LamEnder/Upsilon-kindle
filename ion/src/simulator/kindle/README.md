@@ -110,6 +110,21 @@ make PLATFORM=simulator TARGET=kindle -j4 upsilon.zip
 # -> output/release/simulator/kindle/upsilon.zip (layout above)
 ```
 
+### Fast build
+
+```
+make PLATFORM=simulator TARGET=kindle KINDLE_DIAGNOSTICS=0 -j4 upsilon.zip
+# -> output/release/simulator/kindle-fast/upsilon.zip
+```
+
+compiles out the diagnostics (watchdog, crash reports, backtraces, verbose
+log, rescue gesture), optimizes for speed (`-O2` and link-time optimization
+instead of `-Os`) and strips the binary completely (2.6 MB instead of 4.4 MB).
+Errors and a few key events are still logged; the "debug log" launchers then
+add nothing. It lives in its own output directory, so you can keep both.
+Other knobs: `KINDLE_LTO=0|1` and `KINDLE_CPU_FLAGS` (e.g.
+`"-mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard"` to tune for a core).
+
 The binary is fully static, so it doesn't depend on the firmware's glibc. You
 can also use the koxtoolchain `kindlehf` toolchain:
 `make ... KINDLE_CROSS=arm-kindlehf-linux-gnueabihf-`.
