@@ -2,12 +2,77 @@
 
 <p align="center">
   <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/"><img alt="cc by-nc-sa 4.0" src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-525252.svg?labelColor=292929&logo=creative%20commons&style=for-the-badge" /></a>
-  <a href="https://github.com/UpsilonNumworks/Upsilon/issues"><img alt="Issues" src="https://img.shields.io/github/issues/UpsilonNumworks/Upsilon.svg?labelColor=292929&logo=git&style=for-the-badge" /></a>
+  <a href="https://github.com/LamEnder/Upsilon-kindle/issues"><img alt="Issues" src="https://img.shields.io/github/issues/LamEnder/Upsilon-kindle.svg?labelColor=292929&logo=git&style=for-the-badge" /></a>
+  <a href="https://github.com/LamEnder/Upsilon-kindle/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/LamEnder/Upsilon-kindle?labelColor=292929&logo=github&style=for-the-badge" /></a>
   <br/>
   <a href="https://discord.gg/hnEqPzAJzn"><img alt="Discord" src="https://img.shields.io/discord/663420259851567114?color=blue&labelColor=292929&label=chat%20-%20discord&logo=discord&style=for-the-badge" /></a>
 </p>
 
 > 🇫🇷 Vous ne comprenez pas l'anglais ? Vous êtes francophone ? Regardez le [*LISEZ-MOI* français](./README.fr.md) ! 🇫🇷
+
+# Upsilon for Kindle
+
+**This fork runs [Upsilon](https://github.com/UpsilonNumworks/Upsilon), the
+NumWorks calculator OS, on jailbroken Kindle e-readers.** It targets the
+hard-float **kindlehf** firmware (5.16.3 and later). It was built and tested on
+the **Paperwhite 4** and should also work on the Kindle 10th gen and Oasis 2/3.
+MediaTek-based models (Paperwhite 5, Kindle 11th gen, Scribe…) aren't supported
+yet.
+
+- **The whole calculator:** Calculation, Functions, RPN, Python, Statistics,
+  Probability, Solver, Atomic, Sequences, Regression, Reader and Settings.
+- **Made for e-ink:** a touch keypad laid out like the NumWorks keyboard, a
+  grayscale theme and partial screen refresh.
+- **Your work is kept:** Python scripts, functions, sequences, variables and
+  settings are saved between launches.
+- **Python scripts and books:** the **Files** app copies `.py` scripts between
+  the Kindle's storage and the calculator, and `.txt` books in the same folder
+  open in the Reader app.
+- **Several launchers:** the Kindle library (Scriptlet), KOReader or KUAL.
+
+### Install
+
+1. Download `upsilon-kindle.zip` from the
+   [latest release](https://github.com/LamEnder/Upsilon-kindle/releases/latest).
+   (`upsilon-kindle-debug.zip` is the same with freeze and crash diagnostics,
+   for tracking down problems.)
+2. Connect the Kindle over USB and unzip the file at the root of its storage.
+3. Start Upsilon from KOReader (*Tools → More tools → Upsilon calculator*),
+   from the Kindle library (*Upsilon*), or from KUAL. KOReader is
+   recommended: the Kindle's own status bar can draw over the calculator
+   when it's started from the library or KUAL.
+
+To quit, **hold the exit key** (top left of the keypad) for half a second.
+
+The full guide covers settings, the Files app, troubleshooting and how the
+port works: [Kindle README](ion/src/simulator/kindle/README.md).
+
+### Build
+
+You need a cross compiler for ARMv7 hard-float, such as the `kindlehf`
+toolchain from [koxtoolchain](https://github.com/koreader/koxtoolchain) or
+Debian's `gcc-arm-linux-gnueabihf`. You also need the host packages for the
+regular build: `pkg-config`, `libfreetype-dev`, `libpng-dev`, `zip`, and Python 3
+with `lz4`, `pypng` and `stringcase`.
+
+```bash
+git clone --recursive https://github.com/LamEnder/Upsilon-kindle.git
+cd Upsilon-kindle
+export PATH=$HOME/x-tools/arm-kindlehf-linux-gnueabihf/bin:$PATH
+make PLATFORM=simulator TARGET=kindle KINDLE_CROSS=arm-kindlehf-linux-gnueabihf- KINDLE_DIAGNOSTICS=0 -j$(nproc) upsilon.zip
+```
+
+The package is written to `output/release/simulator/kindle-fast/upsilon.zip`.
+Leave out `KINDLE_DIAGNOSTICS=0` for the diagnostics build
+(`output/release/simulator/kindle/upsilon.zip`), and leave out `KINDLE_CROSS`
+to use `arm-linux-gnueabihf-`.
+
+Report Kindle problems on [this fork's issues](https://github.com/LamEnder/Upsilon-kindle/issues),
+with `upsilon/upsilon.log` from the Kindle attached. Everything below is
+upstream Upsilon's README, for the NumWorks calculator and the other
+platforms.
+
+---
 
 ## About
 
@@ -397,6 +462,22 @@ You'll find simulator files in `output/release/simulator/`.
 
 </details>
 
+<details>
+
+<summary><b>Kindle (kindlehf)</b></summary>
+
+See [Upsilon for Kindle](#upsilon-for-kindle) at the top of this page and the
+[Kindle README](ion/src/simulator/kindle/README.md).
+
+```bash
+make PLATFORM=simulator TARGET=kindle KINDLE_CROSS=arm-kindlehf-linux-gnueabihf- KINDLE_DIAGNOSTICS=0 -j$(nproc) upsilon.zip
+```
+
+Unzip `output/release/simulator/kindle-fast/upsilon.zip` at the root of the
+Kindle's storage.
+
+</details>
+
 
 <details>
 
@@ -527,7 +608,8 @@ You can try Epsilon straight from your browser in the [online simulator](https:/
 NumWorks is a registered trademark of NumWorks SAS, 24 Rue Godot de Mauroy, 75009 Paris, France.
 Nintendo and Nintendo 3DS are registered trademarks of Nintendo of America Inc, 4600 150th Ave NE, Redmond, WA 98052, USA.
 Casio is a registered trademark of Casio Computer Co., Ltd. CORPORATION JAPAN 6-2, Hon-machi 1-chome Shibuya-ku, Tokyo JAPAN 151-8543.
-NumWorks SAS, Nintendo of America Inc and Casio aren't associated in any shape or form with this project.
+Amazon and Kindle are trademarks of Amazon.com, Inc. or its affiliates.
+NumWorks SAS, Nintendo of America Inc, Casio and Amazon aren't associated in any shape or form with this project.
 
 - NumWorks Epsilon is released under a [CC BY-NC-SA License](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 - Omega is released under a [CC BY-NC-SA License](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).

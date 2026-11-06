@@ -9,6 +9,8 @@
 
 > Don't understand French ? Speak English ? here's the [english README](./README.md) !
 
+> 📖 **Upsilon pour Kindle :** ce fork fait tourner Upsilon sur les liseuses Kindle débridées (firmware *kindlehf* 5.16.3 et plus, testé sur la Paperwhite 4). Téléchargement dans les [releases](https://github.com/LamEnder/Upsilon-kindle/releases/latest), instructions (en anglais) dans le [README](./README.md#upsilon-for-kindle) et le [guide Kindle](ion/src/simulator/kindle/README.md).
+
 ## À propos
 
 Upsilon est un fork d'Omega, un fork d'Epsilon, l'OS de NumWorks tournant sur les calculatrices du même nom, qui apporte beaucoup de fonctionnalités en plus, mais qui fut archivé et fermé pour des raisons légales après un changement de politique de NumWorks. Upsilon est fait pour ceux qui aimeraient voir un futur pour les OS créés par les utilisateurs pour NumWorks, même après l'arrêt du projet initial.
