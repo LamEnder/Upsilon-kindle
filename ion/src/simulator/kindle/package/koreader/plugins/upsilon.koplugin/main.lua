@@ -108,12 +108,14 @@ function Upsilon:addToMainMenu(menu_items)
                     self:onLaunchUpsilon()
                 end,
             },
+            -- @diagnostics-begin (removed from KINDLE_DIAGNOSTICS=0 packages)
             {
                 text = _("Launch with debug log"),
                 callback = function()
                     self:onLaunchUpsilon(true)
                 end,
             },
+            -- @diagnostics-end
         },
     }
 end

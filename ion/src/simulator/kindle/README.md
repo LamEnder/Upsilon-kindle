@@ -82,7 +82,7 @@ Kindle over USB to read them. A log contains:
   lists the other programs that have it open) and slow or failed screen
   updates.
 
-**More detail.** Start *Upsilon (with debug log)* from KUAL or KOReader, or
+**More detail.** Start *Upsilon (with debug log)* from KUAL or KOReader (not in the fast build), or
 set `UPSILON_DEBUG=1` in `upsilon.conf`: the log then also has every touch,
 key press, screen update and a status line every 10 s.
 
@@ -118,11 +118,11 @@ make PLATFORM=simulator TARGET=kindle KINDLE_DIAGNOSTICS=0 -j4 upsilon.zip
 ```
 
 compiles out the diagnostics (watchdog, crash reports, backtraces, verbose
-log, rescue gesture), optimizes for speed (`-O2` and link-time optimization
-instead of `-Os`) and strips the binary completely (2.6 MB instead of 4.4 MB).
-Errors and a few key events are still logged; the "debug log" launchers then
-add nothing. It lives in its own output directory, so you can keep both.
-Other knobs: `KINDLE_LTO=0|1` and `KINDLE_CPU_FLAGS` (e.g.
+log, rescue gesture), optimizes for speed (`-O2` instead of `-Os`), strips
+the binary completely and leaves the "debug log" launchers out of the KUAL
+menu and the KOReader plugin. Errors and a few key events are still logged,
+and `debug.sh` is still there. It lives in its own output directory, so you
+can keep both. Another knob: `KINDLE_CPU_FLAGS` (e.g.
 `"-mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard"` to tune for a core).
 
 The binary is fully static, so it doesn't depend on the firmware's glibc. You

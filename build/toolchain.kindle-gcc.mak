@@ -30,10 +30,5 @@ SFLAGS += -funwind-tables
 KINDLE_STRIP_FLAGS = --strip-debug
 endif
 
-ifeq ($(KINDLE_LTO),1)
-SFLAGS += -flto=auto
-LDFLAGS += -flto=auto
-endif
-
 # Fully static: runs regardless of the glibc shipped by the firmware
 LDFLAGS += -static -no-pie -Wl,--gc-sections -pthread

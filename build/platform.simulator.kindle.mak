@@ -8,9 +8,9 @@ EPSILON_TELEMETRY ?= 0
 # KINDLE_DIAGNOSTICS=1 (default): watchdog, crash reports with backtraces,
 #   verbose log on demand (see ion/src/simulator/kindle/debug.h).
 # KINDLE_DIAGNOSTICS=0: "fast" build. Diagnostics compiled out, optimized for
-#   speed (-O2 and link-time optimization) instead of size, fully stripped.
-#   Errors are still logged. Built in its own directory (.../kindle-fast) so
-#   objects from the two configurations never mix.
+#   speed (-O2) instead of size, fully stripped, packaged without the
+#   "debug log" launchers. Errors are still logged. Built in its own directory
+#   (.../kindle-fast) so objects from the two configurations never mix.
 KINDLE_DIAGNOSTICS ?= 1
 
 ifeq ($(KINDLE_DIAGNOSTICS),0)
@@ -19,9 +19,6 @@ ifneq ($(DEBUG),1)
 SFLAGS := $(filter-out -Os,$(SFLAGS))
 SFLAGS += -O2
 endif
-KINDLE_LTO ?= 1
-else
-KINDLE_LTO ?= 0
 endif
 SFLAGS += -DKINDLE_DIAGNOSTICS=$(KINDLE_DIAGNOSTICS)
 
