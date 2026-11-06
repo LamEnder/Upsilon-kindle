@@ -1,3 +1,11 @@
+/* libstdc++'s <cmath> pulls the C header back in with
+ * _GLIBCXX_INCLUDE_NEXT_C_HEADERS set. With some toolchains (e.g. GCC 14 from
+ * koxtoolchain) that lands here again, after our guard is set: pass it on to
+ * the real <math.h> instead of yielding nothing. */
+#if defined(_GLIBCXX_INCLUDE_NEXT_C_HEADERS) && defined(LIBA_BRIDGE_MATH_H)
+#include_next <math.h>
+#endif
+
 #ifndef LIBA_BRIDGE_MATH_H
 #define LIBA_BRIDGE_MATH_H
 
