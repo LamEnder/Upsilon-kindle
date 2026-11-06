@@ -1,4 +1,5 @@
 #include "input.h"
+#include "debug.h"
 #include "eink.h"
 #include "keypad.h"
 #include "persistence.h"
@@ -68,12 +69,15 @@ void pushTap(Key key, int index) {
 
 void fingerDown(int x, int y) {
   int index = Ion::Kindle::Keypad::hitTest(x, y);
+  KINDLE_VLOG("touch: down at %d,%d -> key #%d (key code %d), %d taps queued", x, y, index,
+      index >= 0 ? (int)Ion::Kindle::Keypad::keyOf(index) : -1, sTapCount);
   sPressedIndex = index;
   sPressStart = Ion::Timing::millis();
   sQuitTriggered = false;
   if (index < 0) {
     return;
   }
+  Ion::Kindle::Debug::counters().taps++;
   Ion::Kindle::Keypad::setPressed(index, true);
   Key key = Ion::Kindle::Keypad::keyOf(index);
   if (key != Key::None) {
@@ -83,6 +87,8 @@ void fingerDown(int x, int y) {
 
 void fingerUp() {
   int index = sPressedIndex;
+  KINDLE_VLOG("touch: up (key #%d held %llu ms)", index,
+      (unsigned long long)(Ion::Timing::millis() - sPressStart));
   sPressedIndex = -1;
   if (index < 0) {
     return;
@@ -93,6 +99,7 @@ void fingerUp() {
     tap->held = false;
   }
   if (Ion::Kindle::Keypad::specialOf(index) == Ion::Kindle::Keypad::Special::Refresh) {
+    KINDLE_VLOG("clean screen requested");
     Ion::Kindle::Screen::refresh(true);
     Ion::Kindle::EInk::flushAll(true);
   }
@@ -106,6 +113,7 @@ void checkHold() {
       && Ion::Timing::millis() - sPressStart >= k_quitHoldMs) {
     sQuitTriggered = true;
     sQuitRequested = 1;
+    Ion::Kindle::Debug::log("exit key held, quitting");
   }
 }
 
@@ -117,6 +125,9 @@ void checkHold() {
  *   tap X Y          tap at panel coordinates
  *   wait MS          do nothing for MS milliseconds
  *   shot FILE.pgm    dump the panel (fake framebuffer) to a PGM file
+ *   stall MS         block the main loop in a sleep (watchdog test)
+ *   spin MS          block the main loop in a busy loop (watchdog test)
+ *   crash            dereference a null pointer (crash handler test)
  *   quit             request exit
  * Lines starting with # are ignored. */
 
@@ -186,6 +197,27 @@ void runScript() {
       fprintf(stderr, "script: wrote %s\n", arg);
       continue;
     }
+    // Diagnostics tests: freeze the main loop, or crash
+    if (strcmp(cmd, "stall") == 0 && sscanf(line, "%*s %ld", &n1) == 1) {
+      fprintf(stderr, "script: stalling the main loop for %ld ms\n", n1);
+      Ion::Timing::msleep(n1);
+      continue;
+    }
+    if (strcmp(cmd, "spin") == 0 && sscanf(line, "%*s %ld", &n1) == 1) {
+      fprintf(stderr, "script: busy loop for %ld ms\n", n1);
+      uint64_t end = Ion::Timing::millis() + n1;
+      volatile uint32_t x = 0;
+      while (Ion::Timing::millis() < end) {
+        x++;
+      }
+      continue;
+    }
+    if (strcmp(cmd, "crash") == 0) {
+      fprintf(stderr, "script: crashing on purpose\n");
+      volatile int * volatile p = nullptr;
+      *p = 42;
+      continue;
+    }
     if (strcmp(cmd, "quit") == 0) {
       sQuitRequested = 1;
       return;
@@ -197,7 +229,10 @@ void runScript() {
   sScript = nullptr;
 }
 
-void onSignal(int) {
+volatile sig_atomic_t sQuitSignal = 0;
+
+void onSignal(int sig) {
+  sQuitSignal = sig;
   sQuitRequested = 1;
 }
 
@@ -252,10 +287,15 @@ void keyPressConsumed() {
   Tap * tap = frontTap();
   if (tap != nullptr && !tap->consumed) {
     tap->consumed = true;
+    KINDLE_VLOG("key code %d delivered to the OS", (int)tap->key);
   }
 }
 
 bool quitRequested() {
+  if (sQuitSignal != 0) {
+    Ion::Kindle::Debug::log("quitting on signal %d", (int)sQuitSignal);
+    sQuitSignal = 0;
+  }
   return sQuitRequested != 0;
 }
 
@@ -271,6 +311,7 @@ namespace Ion {
 namespace Keyboard {
 
 State scan() {
+  Kindle::Debug::heartbeat();
   // The OS polls the keyboard when idle: good time to update the panel.
   Kindle::Screen::refresh();
   Kindle::Input::pump();

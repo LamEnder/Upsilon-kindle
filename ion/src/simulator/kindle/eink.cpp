@@ -1,4 +1,6 @@
 #include "eink.h"
+#include "debug.h"
+#include <time.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -179,6 +181,14 @@ bool sendLegacy(const mxcfb_rect & r, uint32_t wfm, uint32_t mode) {
   return ioctl(sFd, MXCFB_SEND_UPDATE_LEGACY, &u) == 0;
 }
 
+uint32_t elapsedMs(const struct timespec & start) {
+  struct timespec end;
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  return (uint32_t)((end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
+}
+
+constexpr uint32_t k_slowIoctlMs = 500;
+
 void sendUpdate(const mxcfb_rect & r, Ion::Kindle::EInk::Waveform waveform, bool full) {
   if (sApi == Api::None) {
     return;
@@ -187,11 +197,26 @@ void sendUpdate(const mxcfb_rect & r, Ion::Kindle::EInk::Waveform waveform, bool
   uint32_t mode = full ? UPDATE_MODE_FULL : UPDATE_MODE_PARTIAL;
   if (sApi != Api::Unknown) {
     uint32_t wfm = waveformValue(waveform, full);
+    struct timespec start;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     bool ok = sApi == Api::Rex ? sendRex(r, wfm, mode)
             : sApi == Api::Zelda ? sendZelda(r, wfm, mode)
             : sendLegacy(r, wfm, mode);
+    int savedErrno = errno;
+    uint32_t ms = elapsedMs(start);
+    Ion::Kindle::Debug::Counters & c = Ion::Kindle::Debug::counters();
+    c.einkUpdates++;
+    if (ms > c.einkMaxMs) {
+      c.einkMaxMs = ms;
+    }
     if (!ok) {
-      fprintf(stderr, "upsilon: e-ink update failed: %s\n", strerror(errno));
+      c.einkFailures++;
+      Ion::Kindle::Debug::log("e-ink: update #%u %ux%u+%u+%u failed: %s", sMarker, r.width, r.height, r.left, r.top, strerror(savedErrno));
+    } else if (ms >= k_slowIoctlMs) {
+      Ion::Kindle::Debug::log("e-ink: update #%u %ux%u+%u+%u took %u ms (slow)", sMarker, r.width, r.height, r.left, r.top, ms);
+    } else {
+      KINDLE_VLOG("e-ink: update #%u %ux%u+%u+%u waveform %u%s, %u ms", sMarker, r.width, r.height, r.left, r.top,
+          wfm, full ? " full" : "", ms);
     }
     return;
   }
@@ -204,12 +229,12 @@ void sendUpdate(const mxcfb_rect & r, Ion::Kindle::EInk::Waveform waveform, bool
             : candidate == Api::Zelda ? sendZelda(r, wfm, mode)
             : sendLegacy(r, wfm, mode);
     if (ok) {
-      fprintf(stderr, "upsilon: using %s EPDC update API\n",
+      Ion::Kindle::Debug::log("e-ink: using %s EPDC update API",
           candidate == Api::Rex ? "Rex (PW4/KT4)" : candidate == Api::Zelda ? "Zelda (KOA2/KOA3)" : "legacy mxcfb");
       return;
     }
   }
-  fprintf(stderr, "upsilon: no e-ink update ioctl accepted (%s); display will not refresh\n", strerror(errno));
+  Ion::Kindle::Debug::log("e-ink: no update ioctl accepted (%s); display will not refresh", strerror(errno));
   sApi = Api::None;
 }
 
@@ -296,12 +321,12 @@ bool init() {
     const char * path = getenv("UPSILON_FB_DEVICE");
     sFd = open(path ? path : "/dev/fb0", O_RDWR | O_CLOEXEC);
     if (sFd < 0) {
-      fprintf(stderr, "upsilon: cannot open framebuffer: %s\n", strerror(errno));
+      Ion::Kindle::Debug::log("cannot open framebuffer: %s", strerror(errno));
       return false;
     }
     fb_fix_screeninfo fixInfo;
     if (ioctl(sFd, FBIOGET_VSCREENINFO, &sVarInfo) != 0 || ioctl(sFd, FBIOGET_FSCREENINFO, &fixInfo) != 0) {
-      fprintf(stderr, "upsilon: cannot query framebuffer: %s\n", strerror(errno));
+      Ion::Kindle::Debug::log("cannot query framebuffer: %s", strerror(errno));
       close(sFd);
       sFd = -1;
       return false;
@@ -315,16 +340,16 @@ bool init() {
     sFbMemorySize = fixInfo.smem_len;
     void * mem = mmap(nullptr, sFbMemorySize, PROT_READ | PROT_WRITE, MAP_SHARED, sFd, 0);
     if (mem == MAP_FAILED) {
-      fprintf(stderr, "upsilon: cannot map framebuffer: %s\n", strerror(errno));
+      Ion::Kindle::Debug::log("cannot map framebuffer: %s", strerror(errno));
       close(sFd);
       sFd = -1;
       return false;
     }
     sFbMemory = static_cast<uint8_t *>(mem);
-    fprintf(stderr, "upsilon: framebuffer %dx%d, %ubpp, stride %u%s, rotate %u\n",
+    Ion::Kindle::Debug::log("framebuffer %dx%d, %ubpp, stride %u%s, rotate %u",
         sWidth, sHeight, sBpp, sLineLength, sInverted ? ", inverted" : "", sVarInfo.rotate);
     if (sBpp != 8 && sBpp != 16 && sBpp != 24 && sBpp != 32) {
-      fprintf(stderr, "upsilon: unsupported framebuffer depth\n");
+      Ion::Kindle::Debug::log("unsupported framebuffer depth");
       shutdown();
       return false;
     }
@@ -405,7 +430,14 @@ void waitForCompletion() {
   mxcfb_update_marker_data m;
   m.update_marker = sMarker;
   m.collision_test = 0;
-  ioctl(sFd, MXCFB_WAIT_FOR_UPDATE_COMPLETE, &m);
+  struct timespec start;
+  clock_gettime(CLOCK_MONOTONIC, &start);
+  int result = ioctl(sFd, MXCFB_WAIT_FOR_UPDATE_COMPLETE, &m);
+  uint32_t ms = elapsedMs(start);
+  if (result < 0 || ms >= k_slowIoctlMs) {
+    Ion::Kindle::Debug::log("e-ink: waiting for update #%u took %u ms%s%s", sMarker, ms,
+        result < 0 ? ", error: " : "", result < 0 ? strerror(errno) : "");
+  }
 }
 
 bool snapshot(const char * path) {

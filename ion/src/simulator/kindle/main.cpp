@@ -5,6 +5,7 @@
  * The panel is split between the calculator screen (scaled up by an integer
  * factor) and a touch keypad. See ion/src/simulator/kindle/README.md. */
 
+#include "debug.h"
 #include "eink.h"
 #include "input.h"
 #include "keypad.h"
@@ -58,6 +59,8 @@ void drawFrame(Rect screen) {
 
 int main(int argc, char * argv[]) {
   setvbuf(stderr, nullptr, _IOLBF, 0);
+  Ion::Kindle::Debug::init();
+  Ion::Kindle::Debug::startWatchdog();
 
   char statePath[PATH_MAX];
   defaultStatePath(statePath, sizeof(statePath));
@@ -83,7 +86,9 @@ int main(int argc, char * argv[]) {
     }
   }
 
+  Ion::Kindle::Debug::setPhase("opening the framebuffer");
   if (!Ion::Kindle::EInk::init()) {
+    Ion::Kindle::Debug::log("cannot use the framebuffer, giving up");
     return 1;
   }
   const int W = Ion::Kindle::EInk::width();
@@ -126,14 +131,17 @@ int main(int argc, char * argv[]) {
     keypad.w = W - keypad.x;
     keypad.h = H - 2 * margin;
   }
-  fprintf(stderr, "upsilon: panel %dx%d, calculator screen x%d at (%d,%d)\n", W, H, scale, screen.x, screen.y);
+  Ion::Kindle::Debug::log("panel %dx%d, calculator screen x%d at (%d,%d)", W, H, scale, screen.x, screen.y);
 
+  Ion::Kindle::Debug::setPhase("opening the touchscreen");
   bool touchOk = Ion::Kindle::Touch::init(W, H);
   if (!touchOk) {
-    fprintf(stderr, "upsilon: continuing without touch input\n");
+    Ion::Kindle::Debug::log("continuing without touch input");
   }
+  Ion::Kindle::Debug::setTouchFd(Ion::Kindle::Touch::fd());
 
   // Initial screen: white, frame, keypad, then one clean flashing refresh
+  Ion::Kindle::Debug::setPhase("drawing the keypad");
   Ion::Kindle::EInk::fill(0, 0, W, H, 0xFF);
   drawFrame(screen);
   Ion::Kindle::Keypad::layout(keypad);
@@ -142,16 +150,21 @@ int main(int argc, char * argv[]) {
   Ion::Kindle::EInk::flushAll(true);
 
   Ion::Kindle::Input::init();
+  Ion::Kindle::Debug::setPhase("loading the saved state");
   Ion::Kindle::Persistence::setPath(statePath);
   Ion::Kindle::Persistence::load();
 
+  Ion::Kindle::Debug::setPhase("running");
   ion_main(args.size(), args.data());
 
+  Ion::Kindle::Debug::setPhase("saving the state");
   Ion::Kindle::Persistence::save();
+  Ion::Kindle::Debug::setPhase("exiting");
   Ion::Kindle::Touch::shutdown();
   // Leave a clean white panel behind; the launcher brings the Kindle UI back
   Ion::Kindle::EInk::fill(0, 0, W, H, 0xFF);
   Ion::Kindle::EInk::flushAll(true);
   Ion::Kindle::EInk::shutdown();
+  Ion::Kindle::Debug::log("clean exit");
   return 0;
 }

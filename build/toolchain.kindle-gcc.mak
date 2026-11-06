@@ -17,6 +17,9 @@ PYTHON = python3
 # Cortex-A9 (i.MX6) and later, hard-float ABI
 SFLAGS += -march=armv7-a -mtune=cortex-a9 -mfpu=neon -mfloat-abi=hard -fno-pie
 SFLAGS += -ffunction-sections -fdata-sections
+# Unwind tables everywhere (C code too) so the watchdog and crash handler can
+# print backtraces
+SFLAGS += -funwind-tables
 
 # Fully static: runs regardless of the glibc shipped by the firmware
-LDFLAGS += -static -no-pie -Wl,--gc-sections
+LDFLAGS += -static -no-pie -Wl,--gc-sections -pthread

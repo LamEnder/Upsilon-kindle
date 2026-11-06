@@ -1,4 +1,5 @@
 #include "touch.h"
+#include "debug.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -17,6 +18,9 @@ constexpr int k_maxSlots = 16;
 
 int sFd = -1;
 bool sGrabbed = false;
+char sPath[64] = "";
+int sRawLogged = 0;
+constexpr int k_maxRawLogged = 400;
 int sScreenW = 0;
 int sScreenH = 0;
 
@@ -108,9 +112,10 @@ bool probe(const char * path) {
   }
   char name[128] = "?";
   ioctl(fd, EVIOCGNAME(sizeof(name)), name);
-  fprintf(stderr, "upsilon: touch device %s \"%s\" (%s), x %d..%d, y %d..%d\n",
+  Ion::Kindle::Debug::log("touch device %s \"%s\" (%s), x %d..%d, y %d..%d",
       path, name, mt ? "multi-touch" : "single-touch", ax.minimum, ax.maximum, ay.minimum, ay.maximum);
   sFd = fd;
+  snprintf(sPath, sizeof(sPath), "%s", path);
   sHasMT = mt;
   sAbsX = ax;
   sAbsY = ay;
@@ -239,6 +244,65 @@ void handle(const input_event & ev) {
   }
 }
 
+/* Lists the processes that have the touchscreen open: if one of them grabbed
+ * it, we get no events. */
+void logDeviceUsers() {
+  char target[64];
+  snprintf(target, sizeof(target), "%s", sPath);
+  DIR * proc = opendir("/proc");
+  if (proc == nullptr) {
+    return;
+  }
+  struct dirent * p;
+  pid_t self = getpid();
+  while ((p = readdir(proc)) != nullptr) {
+    if (p->d_name[0] < '1' || p->d_name[0] > '9' || atoi(p->d_name) == self) {
+      continue;
+    }
+    char fdDir[300];
+    snprintf(fdDir, sizeof(fdDir), "/proc/%s/fd", p->d_name);
+    DIR * fds = opendir(fdDir);
+    if (fds == nullptr) {
+      continue;
+    }
+    struct dirent * f;
+    while ((f = readdir(fds)) != nullptr) {
+      char link[600], dest[128];
+      snprintf(link, sizeof(link), "%s/%s", fdDir, f->d_name);
+      ssize_t n = readlink(link, dest, sizeof(dest) - 1);
+      if (n <= 0) {
+        continue;
+      }
+      dest[n] = 0;
+      if (strcmp(dest, target) == 0) {
+        char commPath[300], comm[64] = "?";
+        snprintf(commPath, sizeof(commPath), "/proc/%s/comm", p->d_name);
+        FILE * c = fopen(commPath, "r");
+        if (c != nullptr) {
+          if (fgets(comm, sizeof(comm), c) != nullptr) {
+            comm[strcspn(comm, "\n")] = 0;
+          }
+          fclose(c);
+        }
+        Ion::Kindle::Debug::log("  %s is also open in process %s (%s)", target, p->d_name, comm);
+        break;
+      }
+    }
+    closedir(fds);
+  }
+  closedir(proc);
+}
+
+void logRaw(const input_event & e) {
+  if (!Ion::Kindle::Debug::verbose() || sRawLogged >= k_maxRawLogged) {
+    return;
+  }
+  sRawLogged++;
+  const char * type = e.type == EV_SYN ? "SYN" : e.type == EV_KEY ? "KEY" : e.type == EV_ABS ? "ABS" : "?";
+  Ion::Kindle::Debug::log("touch raw: %s code 0x%02x value %d%s", type, e.code, e.value,
+      sRawLogged == k_maxRawLogged ? " (raw logging stops here)" : "");
+}
+
 void readDevice() {
   if (sFd < 0) {
     return;
@@ -250,7 +314,12 @@ void readDevice() {
       break;
     }
     int count = n / sizeof(input_event);
+    if (Ion::Kindle::Debug::counters().touchEvents == 0) {
+      Ion::Kindle::Debug::log("touch: first event received");
+    }
+    Ion::Kindle::Debug::counters().touchEvents += count;
     for (int i = 0; i < count; i++) {
+      logRaw(events[i]);
       handle(events[i]);
     }
   }
@@ -286,11 +355,18 @@ bool init(int screenWidth, int screenHeight) {
     }
   }
   if (sFd < 0) {
-    fprintf(stderr, "upsilon: no touchscreen found\n");
+    Ion::Kindle::Debug::log("no touchscreen found");
     return false;
   }
   if (envFlag("UPSILON_TOUCH_GRAB", true)) {
     sGrabbed = ioctl(sFd, EVIOCGRAB, 1) == 0;
+    if (sGrabbed) {
+      Ion::Kindle::Debug::log("touch: exclusive access granted");
+    } else {
+      Ion::Kindle::Debug::log("touch: cannot get exclusive access (%s)%s", strerror(errno),
+          errno == EBUSY ? ": another program grabbed the touchscreen, Upsilon will probably not receive taps" : "");
+      logDeviceUsers();
+    }
   }
   return true;
 }
@@ -320,6 +396,10 @@ bool poll(Event * event) {
 
 void inject(Event event) {
   push(event);
+}
+
+int fd() {
+  return sFd;
 }
 
 }

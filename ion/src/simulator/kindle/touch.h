@@ -39,6 +39,9 @@ bool poll(Event * event);
 /* Inject an event (used by the scripted fake input). */
 void inject(Event event);
 
+/* File descriptor of the touchscreen, -1 if none */
+int fd();
+
 }
 }
 }

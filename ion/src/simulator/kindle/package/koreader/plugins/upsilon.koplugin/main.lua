@@ -43,13 +43,24 @@ function Upsilon:addToMainMenu(menu_items)
     menu_items.upsilon = {
         text = _("Upsilon calculator"),
         sorting_hint = "more_tools",
-        callback = function()
-            self:onLaunchUpsilon()
-        end,
+        sub_item_table = {
+            {
+                text = _("Launch"),
+                callback = function()
+                    self:onLaunchUpsilon()
+                end,
+            },
+            {
+                text = _("Launch with debug log"),
+                callback = function()
+                    self:onLaunchUpsilon(true)
+                end,
+            },
+        },
     }
 end
 
-function Upsilon:onLaunchUpsilon()
+function Upsilon:onLaunchUpsilon(debug)
     if not Device:isKindle() then
         UIManager:show(InfoMessage:new{ text = _("Upsilon for e-readers only runs on Kindle.") })
         return true
@@ -62,11 +73,11 @@ function Upsilon:onLaunchUpsilon()
         return true
     end
     -- Let the menu close before handing over the screen
-    UIManager:scheduleIn(0.5, function() self:run() end)
+    UIManager:scheduleIn(0.5, function() self:run(debug == true) end)
     return true
 end
 
-function Upsilon:run()
+function Upsilon:run(debug)
     local input = Device.input
     -- KOReader grabs its input devices: give them up so Upsilon receives
     -- the touches. Keep the fake events pipe and rotation (gyro) devices.
@@ -83,7 +94,7 @@ function Upsilon:run()
 
     logger.info("Upsilon: starting, released input devices:", table.concat(released, ", "))
     local launcher = UPSILON_DIR .. "/upsilon.sh"
-    local status = os.execute(string.format("sh '%s' --koreader", launcher))
+    local status = os.execute(string.format("sh '%s' --koreader%s", launcher, debug and " --debug" or ""))
     logger.info("Upsilon: exited with", status)
 
     for _, path in ipairs(released) do

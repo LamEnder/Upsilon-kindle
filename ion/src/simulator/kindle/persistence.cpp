@@ -1,4 +1,5 @@
 #include "persistence.h"
+#include "debug.h"
 
 #include <ion/storage.h>
 #include <ion/timing.h>
@@ -75,7 +76,9 @@ void setPath(const char * path) {
 }
 
 void load() {
+  uint64_t start = Ion::Timing::millis();
   sFingerprint = computeFingerprint();
+  Ion::Kindle::Debug::log("binary fingerprint computed in %llu ms", (unsigned long long)(Ion::Timing::millis() - start));
   sPrefsSize = Preferences::size();
   sSavedPrefs = static_cast<uint8_t *>(calloc(1, sPrefsSize));
   Ion::Storage * storage = Ion::Storage::sharedStorage();
@@ -89,14 +92,14 @@ void load() {
   uint64_t fingerprint = 0;
   if (!readValue(f, &magic) || magic != k_magic || !readValue(f, &version) || version != k_version
       || !readValue(f, &fingerprint) || !readValue(f, &prefsSize)) {
-    fprintf(stderr, "upsilon: %s is not a valid state file, ignoring it\n", sPath);
+    Ion::Kindle::Debug::log("%s is not a valid state file, ignoring it", sPath);
     fclose(f);
     rememberCurrentState();
     return;
   }
   bool sameBinary = fingerprint == sFingerprint && fingerprint != 0;
   if (!sameBinary) {
-    fprintf(stderr, "upsilon: state was saved by another build, restoring scripts, functions and sequences only\n");
+    Ion::Kindle::Debug::log("state was saved by another build, restoring scripts, functions and sequences only");
   }
   uint8_t * prefs = static_cast<uint8_t *>(malloc(prefsSize ? prefsSize : 1));
   bool prefsOk = fread(prefs, 1, prefsSize, f) == prefsSize;
@@ -114,14 +117,14 @@ void load() {
       if (!readValue(f, &nameLength) || nameLength >= sizeof(name)
           || fread(name, 1, nameLength, f) != nameLength || !readValue(f, &size)
           || size > Ion::Storage::k_storageSize) {
-        fprintf(stderr, "upsilon: state file is truncated\n");
+        Ion::Kindle::Debug::log("state file is truncated");
         break;
       }
       name[nameLength] = 0;
       void * data = malloc(size ? size : 1);
       if (fread(data, 1, size, f) != size) {
         free(data);
-        fprintf(stderr, "upsilon: state file is truncated\n");
+        Ion::Kindle::Debug::log("state file is truncated");
         break;
       }
       if (sameBinary || hasSafeExtension(name)) {
@@ -137,7 +140,7 @@ void load() {
     }
   }
   fclose(f);
-  fprintf(stderr, "upsilon: restored %d records from %s\n", restored, sPath);
+  Ion::Kindle::Debug::log("restored %d records from %s", restored, sPath);
   rememberCurrentState();
 }
 
@@ -145,11 +148,12 @@ void save() {
   if (sPath[0] == 0) {
     return;
   }
+  uint64_t start = Ion::Timing::millis();
   char tmpPath[sizeof(sPath) + 8];
   snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", sPath);
   FILE * f = fopen(tmpPath, "wb");
   if (f == nullptr) {
-    fprintf(stderr, "upsilon: cannot write %s\n", tmpPath);
+    Ion::Kindle::Debug::log("cannot write %s", tmpPath);
     return;
   }
   writeValue<uint32_t>(f, k_magic);
@@ -180,8 +184,14 @@ void save() {
   fclose(f);
   if (ok && rename(tmpPath, sPath) == 0) {
     rememberCurrentState();
+    uint64_t ms = Ion::Timing::millis() - start;
+    if (ms >= 300) {
+      Ion::Kindle::Debug::log("state saved in %llu ms (slow storage)", (unsigned long long)ms);
+    } else {
+      KINDLE_VLOG("state saved in %llu ms", (unsigned long long)ms);
+    }
   } else {
-    fprintf(stderr, "upsilon: failed to save state to %s\n", sPath);
+    Ion::Kindle::Debug::log("failed to save state to %s", sPath);
     unlink(tmpPath);
   }
 }

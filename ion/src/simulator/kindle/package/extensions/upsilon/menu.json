@@ -6,6 +6,20 @@
       "action": "/bin/sh",
       "params": "/mnt/us/upsilon/upsilon.sh",
       "exitmenu": true
+    },
+    {
+      "name": "Upsilon (with debug log)",
+      "priority": 2,
+      "action": "/bin/sh",
+      "params": "/mnt/us/upsilon/upsilon.sh --debug",
+      "exitmenu": true
+    },
+    {
+      "name": "Stop Upsilon and restore the Kindle UI",
+      "priority": 3,
+      "action": "/bin/sh",
+      "params": "/mnt/us/upsilon/debug.sh stop",
+      "exitmenu": false
     }
   ]
 }

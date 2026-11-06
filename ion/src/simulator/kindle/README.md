@@ -17,7 +17,7 @@ storage (over USB). It contains:
 
 | Folder | What it is |
 | --- | --- |
-| `upsilon/` | The calculator itself, its settings (`upsilon.conf`), saved state and log. **Always needed.** |
+| `upsilon/` | The calculator itself, its settings (`upsilon.conf`), saved state, logs and `debug.sh`. **Always needed.** |
 | `documents/Upsilon.sh` | A [Scriptlet](https://kindlemodding.org/kindle-dev/scriptlets.html): Upsilon appears in the Kindle library, tap it to start. Needs the Universal Hotfix (installed with WinterBreak and later jailbreaks). |
 | `koreader/plugins/upsilon.koplugin/` | [KOReader](https://koreader.rocks) plugin: *Tools → More tools → Upsilon calculator*. It can also be bound to a gesture. |
 | `extensions/upsilon/` | [KUAL](https://www.mobileread.com/forums/showthread.php?t=203326) menu entry. |
@@ -53,6 +53,47 @@ Upsilon runs. From KOReader, KOReader hands over the screen and touch panel
 and takes them back afterwards. If you press the power
 button the Kindle goes to sleep as usual; after waking it up, tap
 **clean screen** to repaint the calculator.
+
+## If something goes wrong
+
+**Upsilon froze.** Hold a finger anywhere on the screen for 3 seconds: when
+the calculator has been unresponsive for a few seconds, this quits it and the
+Kindle UI comes back. (Anything changed since the last autosave, at most a few
+seconds old, is lost.)
+
+**Logs.** Each launch writes `upsilon/upsilon.log`; the five previous ones
+are kept as `upsilon.1.log` (most recent) to `upsilon.5.log`. Connect the
+Kindle over USB to read them. A log contains:
+
+* the firmware, input devices and screen the launcher saw, and every step it
+  took, with timestamps;
+* each startup step of the calculator (`phase: ...`);
+* a **watchdog report** whenever the calculator stops responding for 4 s:
+  what the program was doing in the kernel (`main thread`, `kernel wait
+  channel`, `system call`, e.g. an e-ink ioctl), and a backtrace naming the
+  functions it was in;
+* crash reports (`CRASH: SIGSEGV ...`) with a backtrace;
+* problems with the touch panel (e.g. `cannot get exclusive access`, which
+  lists the other programs that have it open) and slow or failed screen
+  updates.
+
+**More detail.** Start *Upsilon (with debug log)* from KUAL or KOReader, or
+set `UPSILON_DEBUG=1` in `upsilon.conf`: the log then also has every touch,
+key press, screen update and a status line every 10 s.
+
+**Live, over SSH** (with USBNetwork):
+
+```
+sh /mnt/us/upsilon/debug.sh          # what Upsilon is doing right now
+sh /mnt/us/upsilon/debug.sh report   # full report with backtrace
+sh /mnt/us/upsilon/debug.sh log      # follow the log
+sh /mnt/us/upsilon/debug.sh stop     # stop it and bring back the Kindle UI
+```
+
+*Stop Upsilon and restore the Kindle UI* in KUAL does the same as `stop`.
+
+Only one Upsilon runs at a time: tapping the launcher again while it starts
+is ignored (and noted in the log).
 
 ## Building
 
@@ -90,7 +131,8 @@ UPSILON_FAKE_FB=1072x1448 UPSILON_FAKE_INPUT=script.txt \
 ```
 
 Commands: `key NAME`, `hold NAME MS`, `tap X Y`, `wait MS`, `shot FILE.pgm`,
-`quit` (see `input.cpp`).
+`quit`, and to test the diagnostics `stall MS`, `spin MS`, `crash` (see
+`input.cpp`).
 
 ## How it works
 
@@ -102,4 +144,5 @@ Commands: `key NAME`, `hold NAME MS`, `tap X Y`, `wait MS`, `shot FILE.pgm`,
 | `keypad.cpp` | Keypad layout and drawing (with Kandinsky's fonts), hit testing, pressed-key feedback |
 | `input.cpp` | Turns taps into `Ion::Keyboard::State`s so that short taps and taps during busy periods are not lost, and direct keyboard polls (Python interrupt, `ion.keydown`) behave like on the hardware |
 | `persistence.cpp`, `preferences.cpp` | State file |
+| `debug.cpp` | Timestamped log, watchdog thread (stall reports with kernel state and symbolized backtraces read from the binary's own symbol table), crash handler, rescue gesture |
 | `package/` | Launchers: `upsilon.sh` (pauses the Kindle UI (`cvm`), status bar and screensaver, then restores them; `--scriptlet` and `--koreader` modes), the Scriptlet, the KOReader plugin and the KUAL entry |

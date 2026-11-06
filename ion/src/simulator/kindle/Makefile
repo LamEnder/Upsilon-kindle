@@ -1,5 +1,6 @@
 ion_src += $(addprefix ion/src/simulator/kindle/, \
   battery.cpp \
+  debug.cpp \
   clipboard.cpp \
   console.cpp \
   eink.cpp \
