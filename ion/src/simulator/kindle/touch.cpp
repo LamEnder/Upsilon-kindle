@@ -318,7 +318,7 @@ void logDeviceUsers() {
           }
           fclose(c);
         }
-        Ion::Kindle::Debug::log("  %s is also open in process %s (%s), parent %d (%s)", target, p->d_name, comm, ppid, parentComm);
+        Ion::Kindle::Debug::log("  %s is also open in process %s (%s) as fd %s, parent %d (%s)", target, p->d_name, comm, f->d_name, ppid, parentComm);
         break;
       }
     }

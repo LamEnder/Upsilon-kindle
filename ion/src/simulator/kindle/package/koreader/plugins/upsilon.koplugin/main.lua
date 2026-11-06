@@ -1,9 +1,10 @@
 --[[--
 Launches the Upsilon calculator from KOReader.
 
-Upsilon needs the screen and the touch panel to itself, so while it runs we
-release KOReader's (exclusively grabbed) input devices, then take them back
-and repaint everything once it exits.
+KOReader keeps its input devices open with an exclusive grab (EVIOCGRAB),
+so nobody else receives touches. While Upsilon runs, we lift those grabs
+(leaving the devices open, so KOReader's own bookkeeping is untouched) and
+put them back once it exits.
 
 @module koplugin.Upsilon
 --]]
@@ -13,17 +14,74 @@ local Dispatcher = require("dispatcher")
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
+local ffi = require("ffi")
 local lfs = require("libs/libkoreader-lfs")
 local logger = require("logger")
 local _ = require("gettext")
 local T = require("ffi/util").template
 
+require("ffi/posix_h") -- read, ioctl
+pcall(ffi.cdef, "ssize_t readlink(const char *, char *, size_t);")
+local C = ffi.C
+
 local UPSILON_DIR = "/mnt/us/upsilon"
+local EVIOCGRAB = 0x40044590 -- _IOW('E', 0x90, int)
+local MAX_FD = 1024
 
 local Upsilon = WidgetContainer:extend{
     name = "upsilon",
     is_doc_only = false,
+    -- Overridable for tests
+    input_device_pattern = "^/dev/input/event%d+$",
 }
+
+--- Lists our own file descriptors that point to input event devices.
+function Upsilon:inputDeviceFds()
+    local found = {}
+    local buffer = ffi.new("char[256]")
+    for fd = 0, MAX_FD - 1 do
+        local n = C.readlink("/proc/self/fd/" .. fd, buffer, 255)
+        if n > 0 then
+            local target = ffi.string(buffer, n)
+            if target:match(self.input_device_pattern) then
+                table.insert(found, { fd = fd, path = target })
+            end
+        end
+    end
+    return found
+end
+
+--- Lifts KOReader's grabs. Returns the descriptors that were grabbed.
+function Upsilon:releaseGrabs()
+    local released = {}
+    for _i, dev in ipairs(self:inputDeviceFds()) do
+        -- Ungrabbing fails (EINVAL) when this descriptor did not hold the grab
+        if C.ioctl(dev.fd, EVIOCGRAB, ffi.cast("int", 0)) == 0 then
+            table.insert(released, dev)
+            logger.info("Upsilon: released grab on fd", dev.fd, dev.path)
+        else
+            logger.dbg("Upsilon: fd", dev.fd, dev.path, "was not grabbed")
+        end
+    end
+    return released
+end
+
+function Upsilon:restoreGrabs(released)
+    local buffer = ffi.new("char[1024]")
+    for _i, dev in ipairs(released) do
+        if C.ioctl(dev.fd, EVIOCGRAB, ffi.cast("int", 1)) ~= 0 then
+            logger.warn("Upsilon: could not grab fd", dev.fd, dev.path, "again:", ffi.string(C.strerror(ffi.errno())))
+        end
+        -- Drop touches that reached us between Upsilon's exit and the grab
+        -- (e.g. lifting the finger from Upsilon's exit key). The descriptor
+        -- is non-blocking; stop at a sane limit just in case.
+        for _j = 1, 64 do
+            if C.read(dev.fd, buffer, 1024) <= 0 then
+                break
+            end
+        end
+    end
+end
 
 function Upsilon:onDispatcherRegisterActions()
     Dispatcher:registerAction("upsilon_launch", {
@@ -78,21 +136,9 @@ function Upsilon:onLaunchUpsilon(debug)
 end
 
 function Upsilon:run(debug)
-    local input = Device.input
-    -- KOReader grabs its input devices: give them up so Upsilon receives
-    -- the touches. Keep the fake events pipe and rotation (gyro) devices.
-    local released = {}
-    local rotation_fds = input.rotation_fds or {}
-    for path, fd in pairs(input.opened_devices or {}) do
-        if path ~= "fake_events" and not rotation_fds[fd] then
-            table.insert(released, path)
-        end
-    end
-    for _i, path in ipairs(released) do
-        input:close(path)
-    end
+    local released = self:releaseGrabs()
+    logger.info("Upsilon: starting, released", #released, "input grab(s)")
 
-    logger.info("Upsilon: starting, released input devices:", table.concat(released, ", "))
     local launcher = UPSILON_DIR .. "/upsilon.sh"
     local a, _reason, c = os.execute(string.format("sh '%s' --koreader%s", launcher, debug and " --debug" or ""))
     -- Lua 5.1 returns the raw wait status, Lua 5.2 style (true|nil, "exit", code)
@@ -102,16 +148,11 @@ function Upsilon:run(debug)
     end
     logger.info("Upsilon: exited with", code)
 
-    for _i, path in ipairs(released) do
-        local ok, err = pcall(input.open, input, path)
-        if not ok then
-            logger.warn("Upsilon: could not reopen input device", path, err)
-        end
-    end
+    self:restoreGrabs(released)
     UIManager:setDirty("all", "full")
     if code == 75 then
         UIManager:show(InfoMessage:new{
-            text = _("Upsilon could not use the touchscreen: KOReader was still busy with it (for example extracting book covers). Please try again in a moment."),
+            text = _("Upsilon could not use the touchscreen: another program kept it. Restarting KOReader should help; please send upsilon/upsilon.log if it keeps happening."),
         })
     end
 end

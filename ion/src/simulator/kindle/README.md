@@ -56,6 +56,11 @@ button the Kindle goes to sleep as usual; after waking it up, tap
 
 ## If something goes wrong
 
+**Launching from KOReader:** KOReader keeps exclusive access to the
+touchscreen; the plugin lifts it while Upsilon runs and restores it after.
+If Upsilon cannot get the touchscreen within 10 s it quits (status 75 in
+the log) rather than ignoring your taps.
+
 **Upsilon froze.** Hold a finger anywhere on the screen for 3 seconds: when
 the calculator has been unresponsive for a few seconds, this quits it and the
 Kindle UI comes back. (Anything changed since the last autosave, at most a few
