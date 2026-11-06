@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <time.h>
 #include <unistd.h>
 
 namespace {
@@ -18,7 +19,17 @@ constexpr int k_maxSlots = 16;
 
 int sFd = -1;
 bool sGrabbed = false;
-char sPath[64] = "";
+/* Another process may hold an exclusive grab on the touchscreen when we
+ * start, e.g. a short-lived subprocess of KOReader that inherited its
+ * grabbed descriptor. Keep trying for a while instead of failing once. */
+bool sGrabRetrying = false;
+bool sGrabGaveUp = false;
+uint64_t sGrabFailedSince = 0;
+uint64_t sNextGrabAttempt = 0;
+int sGrabAttempts = 0;
+constexpr uint64_t k_grabRetryEveryMs = 200;
+constexpr uint64_t k_grabGiveUpMs = 10000;
+char sPath[256] = "";
 int sRawLogged = 0;
 constexpr int k_maxRawLogged = 400;
 int sScreenW = 0;
@@ -247,7 +258,7 @@ void handle(const input_event & ev) {
 /* Lists the processes that have the touchscreen open: if one of them grabbed
  * it, we get no events. */
 void logDeviceUsers() {
-  char target[64];
+  char target[256];
   snprintf(target, sizeof(target), "%s", sPath);
   DIR * proc = opendir("/proc");
   if (proc == nullptr) {
@@ -267,7 +278,7 @@ void logDeviceUsers() {
     }
     struct dirent * f;
     while ((f = readdir(fds)) != nullptr) {
-      char link[600], dest[128];
+      char link[600], dest[256];
       snprintf(link, sizeof(link), "%s/%s", fdDir, f->d_name);
       ssize_t n = readlink(link, dest, sizeof(dest) - 1);
       if (n <= 0) {
@@ -284,7 +295,30 @@ void logDeviceUsers() {
           }
           fclose(c);
         }
-        Ion::Kindle::Debug::log("  %s is also open in process %s (%s)", target, p->d_name, comm);
+        // Parent process: tells a program from a subprocess it forked
+        int ppid = 0;
+        char parentComm[64] = "?";
+        snprintf(commPath, sizeof(commPath), "/proc/%s/stat", p->d_name);
+        c = fopen(commPath, "r");
+        if (c != nullptr) {
+          char statLine[512];
+          if (fgets(statLine, sizeof(statLine), c) != nullptr) {
+            const char * close = strrchr(statLine, ')');
+            if (close != nullptr) {
+              sscanf(close + 2, "%*c %d", &ppid);
+            }
+          }
+          fclose(c);
+        }
+        snprintf(commPath, sizeof(commPath), "/proc/%d/comm", ppid);
+        c = fopen(commPath, "r");
+        if (c != nullptr) {
+          if (fgets(parentComm, sizeof(parentComm), c) != nullptr) {
+            parentComm[strcspn(parentComm, "\n")] = 0;
+          }
+          fclose(c);
+        }
+        Ion::Kindle::Debug::log("  %s is also open in process %s (%s), parent %d (%s)", target, p->d_name, comm, ppid, parentComm);
         break;
       }
     }
@@ -301,6 +335,43 @@ void logRaw(const input_event & e) {
   const char * type = e.type == EV_SYN ? "SYN" : e.type == EV_KEY ? "KEY" : e.type == EV_ABS ? "ABS" : "?";
   Ion::Kindle::Debug::log("touch raw: %s code 0x%02x value %d%s", type, e.code, e.value,
       sRawLogged == k_maxRawLogged ? " (raw logging stops here)" : "");
+}
+
+uint64_t nowMs() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+void retryGrab() {
+  if (!sGrabRetrying) {
+    return;
+  }
+  uint64_t now = nowMs();
+  if (now < sNextGrabAttempt) {
+    return;
+  }
+  sGrabAttempts++;
+  if (ioctl(sFd, EVIOCGRAB, 1) == 0) {
+    sGrabbed = true;
+    sGrabRetrying = false;
+    Ion::Kindle::Debug::log("touch: exclusive access granted after %.1f s (%d attempts)",
+        (now - sGrabFailedSince) / 1000.0, sGrabAttempts);
+    // Drop whatever was queued before: it belongs to the other program
+    char discard[512];
+    while (read(sFd, discard, sizeof(discard)) > 0) {
+    }
+    return;
+  }
+  if (now - sGrabFailedSince >= k_grabGiveUpMs) {
+    sGrabRetrying = false;
+    sGrabGaveUp = true;
+    Ion::Kindle::Debug::log("touch: still no exclusive access after %llu s (%s), giving up; current users:",
+        (unsigned long long)(k_grabGiveUpMs / 1000), strerror(errno));
+    logDeviceUsers();
+    return;
+  }
+  sNextGrabAttempt = now + k_grabRetryEveryMs;
 }
 
 void readDevice() {
@@ -362,10 +433,16 @@ bool init(int screenWidth, int screenHeight) {
     sGrabbed = ioctl(sFd, EVIOCGRAB, 1) == 0;
     if (sGrabbed) {
       Ion::Kindle::Debug::log("touch: exclusive access granted");
-    } else {
-      Ion::Kindle::Debug::log("touch: cannot get exclusive access (%s)%s", strerror(errno),
-          errno == EBUSY ? ": another program grabbed the touchscreen, Upsilon will probably not receive taps" : "");
+    } else if (errno == EBUSY) {
+      Ion::Kindle::Debug::log("touch: another program has exclusive access to the touchscreen, retrying for %llu s",
+          (unsigned long long)(k_grabGiveUpMs / 1000));
       logDeviceUsers();
+      sGrabRetrying = true;
+      sGrabFailedSince = nowMs();
+      sNextGrabAttempt = sGrabFailedSince + k_grabRetryEveryMs;
+    } else {
+      // No grab support: events still reach every reader
+      Ion::Kindle::Debug::log("touch: cannot get exclusive access (%s), continuing without it", strerror(errno));
     }
   }
   return true;
@@ -382,6 +459,7 @@ void shutdown() {
 }
 
 bool poll(Event * event) {
+  retryGrab();
   if (sQueueCount == 0) {
     readDevice();
   }
@@ -400,6 +478,10 @@ void inject(Event event) {
 
 int fd() {
   return sFd;
+}
+
+bool unavailable() {
+  return sGrabGaveUp;
 }
 
 }

@@ -165,6 +165,10 @@ int main(int argc, char * argv[]) {
   Ion::Kindle::EInk::fill(0, 0, W, H, 0xFF);
   Ion::Kindle::EInk::flushAll(true);
   Ion::Kindle::EInk::shutdown();
+  if (Ion::Kindle::Touch::unavailable()) {
+    Ion::Kindle::Debug::log("exit: the touchscreen was not available (status 75)");
+    return 75;
+  }
   Ion::Kindle::Debug::log("clean exit");
   return 0;
 }

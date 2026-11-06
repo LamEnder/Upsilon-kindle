@@ -261,6 +261,10 @@ void init() {
 
 void pump() {
   runScript();
+  if (Touch::unavailable() && !sQuitRequested) {
+    Ion::Kindle::Debug::log("quitting: the touchscreen is not available");
+    sQuitRequested = 1;
+  }
   Touch::Event e;
   while (Touch::poll(&e)) {
     switch (e.type) {

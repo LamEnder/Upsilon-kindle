@@ -164,6 +164,7 @@ UPSILON_PID=""
 case ${STATUS} in
     0) log "upsilon exited normally" ;;
     70) log "upsilon exited: quit with the rescue gesture after freezing (status 70)" ;;
+    75) log "upsilon exited: another program kept the touchscreen, see 'touch:' lines above (status 75)" ;;
     *)
         if [ ${STATUS} -gt 128 ]; then
             log "upsilon exited: killed by signal $((STATUS - 128)) (status ${STATUS})"

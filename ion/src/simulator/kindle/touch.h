@@ -42,6 +42,10 @@ void inject(Event event);
 /* File descriptor of the touchscreen, -1 if none */
 int fd();
 
+/* True when another program kept exclusive access to the touchscreen for
+ * too long: Upsilon cannot receive taps and should quit. */
+bool unavailable();
+
 }
 }
 }

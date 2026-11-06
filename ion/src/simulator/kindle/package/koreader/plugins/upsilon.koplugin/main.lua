@@ -88,22 +88,32 @@ function Upsilon:run(debug)
             table.insert(released, path)
         end
     end
-    for _, path in ipairs(released) do
+    for _i, path in ipairs(released) do
         input:close(path)
     end
 
     logger.info("Upsilon: starting, released input devices:", table.concat(released, ", "))
     local launcher = UPSILON_DIR .. "/upsilon.sh"
-    local status = os.execute(string.format("sh '%s' --koreader%s", launcher, debug and " --debug" or ""))
-    logger.info("Upsilon: exited with", status)
+    local a, _reason, c = os.execute(string.format("sh '%s' --koreader%s", launcher, debug and " --debug" or ""))
+    -- Lua 5.1 returns the raw wait status, Lua 5.2 style (true|nil, "exit", code)
+    local code = c
+    if code == nil and type(a) == "number" then
+        code = a >= 256 and math.floor(a / 256) or a
+    end
+    logger.info("Upsilon: exited with", code)
 
-    for _, path in ipairs(released) do
+    for _i, path in ipairs(released) do
         local ok, err = pcall(input.open, input, path)
         if not ok then
             logger.warn("Upsilon: could not reopen input device", path, err)
         end
     end
     UIManager:setDirty("all", "full")
+    if code == 75 then
+        UIManager:show(InfoMessage:new{
+            text = _("Upsilon could not use the touchscreen: KOReader was still busy with it (for example extracting book covers). Please try again in a moment."),
+        })
+    end
 end
 
 return Upsilon
